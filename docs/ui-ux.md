@@ -1,222 +1,128 @@
 # UI / UX
 
-Read this only if:
-- you are changing page layout, screen structure, interaction flow, or user-facing states
-- you are implementing upload, selection, export, preview, or progress UX
-- you need to know which UI states are required for MVP
+## Read this only if
+- you are changing popup/page layout, screen structure, or user-facing states
+- you are implementing export options, status, or save interactions
+- you need required UI states for MVP
 
-Do not read this for:
-- archive parsing internals
-- output file structure details
-- stack or tooling decisions
+## Do not read this for
+- extraction internals
+- saved file schema
+- build or runtime architecture
 
-Related docs:
-- `../AGENTS.md` - repo rules and change discipline
-- `README.md` - doc routing
-- `mvp-scope.md` - MVP boundaries and non-goals
-- `export-format.md` - export artifact rules
-- `tech-stack.md` - implementation constraints
+## Related docs
+- `../AGENTS.md` for repo rules
+- `README.md` for doc routing
+- `mvp-scope.md` for feature boundaries
+- `export-format.md` for saved output rules
+- `tech-stack.md` for extension architecture
 
 ## Purpose
-The page is a local-first utility, not a content site.
-The UI must help the user:
-1. load a ChatGPT export
-2. inspect available conversations
-3. choose one conversation to export
-4. configure a small set of export options
-5. save the result
-
-The UI must make local processing obvious.
+The extension UI is a quick local export tool.
+It must help the user:
+1. confirm the current page is exportable
+2. choose a small set of export options
+3. run export
+4. save the result
 
 ## UX principles
-- Prioritize clarity over visual flair.
+- Prefer speed and clarity over visual complexity.
 - Keep the default path short.
-- Show one primary action per step.
-- Avoid hidden state and ambiguous wording.
-- Make heavy work visible with progress and status.
+- Show one primary action.
+- Make local processing obvious.
 - Fail with specific recovery advice.
 
-## Primary flow
-1. User opens the page.
-2. User sees a short explanation that processing happens locally.
-3. User selects or drops a ChatGPT export archive.
-4. App validates the file and starts parsing.
-5. App shows progress while reading and indexing.
-6. App shows a conversation list.
-7. User selects one conversation.
-8. User adjusts export options.
-9. App shows a compact summary of the export result.
-10. User clicks save.
-11. App downloads the output artifact.
+## Primary surface
+Use the extension popup as the MVP UI.
+Do not require a separate full page for the main flow.
 
-## Page structure
-Use a single-page layout with clear sections.
-
+## Popup structure
 ### 1. Header
 Contains:
-- page title
-- one-line description
-- explicit local-processing notice
+- tool name
+- one-line local-processing note
 
-Example content:
-- Title: `ChatGPT Export Extractor`
-- Note: `All processing happens in your browser.`
+Example:
+- `Export current chat`
+- `Runs locally in your browser.`
 
-### 2. Input section
-Contains:
-- file picker button
-- drag-and-drop area
-- short accepted-file hint
-- current file name after selection
+### 2. Page status block
+Must show one of:
+- supported chat page detected
+- unsupported page
+- extraction in progress
+- extraction failed
 
-Behavior:
-- empty state before file selection
-- disabled state while parsing
-- replace-file action after parsing completes or fails
+### 3. Export options
+Keep MVP options minimal:
+- output format: JSON / Markdown
+- include timestamps: on / off when available
+- include attachment metadata: on / off
 
-### 3. Progress / status section
-Visible only when needed.
-Contains:
-- current stage label
-- optional progress bar
-- short detail text
-
-Possible stages:
-- validating archive
-- reading archive
-- indexing conversations
-- preparing export
-- packaging files
-
-### 4. Conversation list section
-Shown after successful parsing.
-Contains:
-- searchable list of conversations
-- lightweight metadata per item only if available and useful
-- clear selected state
-
-Recommended item fields:
-- title
-- short secondary info such as message count or date range if cheap to compute
-
-Do not overload this list with dense metadata.
-
-### 5. Export options section
-Shown only after a conversation is selected.
-Keep options minimal for MVP.
-
-Initial options:
-- include timestamps: on / off
-- include attachments: on / off
-- output format: json
-
-Do not expose speculative or future options in MVP.
-
-### 6. Export summary section
-Shown before save.
-Contains:
-- selected conversation title
-- chosen options
+### 4. Export summary
+Show:
+- detected chat title if available
 - expected output type
-- warning if attachments may trigger packaging
+- packaging note only when relevant
 
-### 7. Save section
-Contains one primary button:
-- `Save export`
+### 5. Actions
+Primary:
+- `Export current chat`
 
-Optional secondary action:
+Secondary when needed:
+- `Retry`
 - `Reset`
 
-## Required UI states
+## Required states
+### Ready
+Current page is supported.
+Export action is enabled.
 
-### Empty state
-Shown on first load.
-Must answer:
-- what this tool does
-- what file the user should provide
-- that processing is local
+### Unsupported page
+Explain that the user must open a ChatGPT chat page.
+Do not show fake export controls.
 
-### Parsing state
-Shown after file selection.
-Must prevent conflicting actions.
-Must display status.
+### Busy
+Disable repeated export clicks.
+Show current stage.
 
-### Parsed state
-Shown after successful indexing.
-Must allow conversation selection and export setup.
+### Success
+Confirm what was generated.
 
-### Exporting state
-Shown while generating output.
-Must disable repeated save clicks.
-
-### Success state
-Shown after save is prepared or download starts.
-Must confirm what was generated.
-
-### Error state
-Must include:
+### Error
+State:
 - what failed
 - likely cause
-- next user action
-
-Examples:
-- unsupported archive structure
-- missing expected conversation data
-- malformed JSON
-- attachment extraction failure
+- next action
 
 ## Interaction rules
-- Do not auto-export after parsing.
-- Do not auto-select a conversation unless there is exactly one obvious candidate.
-- Do not hide option changes behind icons only.
-- Do not place critical actions below long scrolling content when avoidable.
-- Confirm destructive reset only if it would discard meaningful in-page work.
+- Do not auto-export on popup open.
+- Do not hide critical options behind ambiguous icons.
+- Do not pretend an attachment was captured if only metadata was available.
+- Keep copy literal.
 
 ## Copy rules
-Use short, literal labels.
-Avoid internal jargon.
-
 Prefer:
-- `Select export file`
-- `Processing locally`
-- `Choose a conversation`
-- `Include attachments`
-- `Save export`
+- `Current chat detected`
+- `Open a ChatGPT chat to export`
+- `Include attachment metadata`
+- `Export current chat`
+- `Saving locally`
 
 Avoid:
 - `Ingest`
-- `Materialize`
-- `Bundle artifact`
 - `Hydrate`
+- `Artifact`
+- `Sync`
 
 ## Accessibility
-- Full keyboard navigation is required.
-- All controls must have visible labels.
-- Status changes must be readable by screen readers where practical.
-- Contrast must be sufficient without relying on color alone.
-- Drag-and-drop must not be the only upload path.
-
-## Responsive behavior
-Desktop is the main target.
-Mobile should remain usable but can be simplified.
-
-Minimum responsive rules:
-- stack sections vertically on narrow screens
-- keep primary actions visible without precision tapping
-- do not depend on hover-only interactions
+- Full keyboard access.
+- Visible labels for all controls.
+- Status text must not rely on color alone.
+- Popup must remain usable at small sizes.
 
 ## Non-goals for MVP
-- multi-conversation batch export flow
-- persistent history of processed exports
-- account system
-- collaboration features
-- rich visual analytics over conversations
-- advanced filtering UI
-
-## Done means
-UI/UX work is done when:
-- the page supports the primary flow without explanation from a developer
-- required states are implemented
-- errors are actionable
-- local processing is clearly communicated
-- the save path is obvious and reliable
+- multi-chat selection UI
+- history browser UI
+- analytics dashboard
+- visual conversation analysis

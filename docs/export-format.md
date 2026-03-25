@@ -1,38 +1,43 @@
 # Export Format
 
 ## Read this only if
-- the task changes exported files
-- the task changes JSON shape
+- the task changes saved files
+- the task changes JSON or Markdown shape
 - the task changes attachment handling, packaging, or filenames
 
 ## Do not read this for
-- MVP feature boundaries or UX scope -> see `mvp-scope.md`
-- stack, rendering, worker, or dependency choices -> see `tech-stack.md`
+- feature boundaries or browser support -> see `mvp-scope.md`
+- extension architecture or build/runtime choices -> see `tech-stack.md`
+- popup states or interaction copy -> see `ui-ux.md`
 
 ## Related docs
-- `mvp-scope.md` for what MVP must support
-- `tech-stack.md` for implementation direction
+- `mvp-scope.md` for what MVP exports
+- `tech-stack.md` for how export is produced
+- `ui-ux.md` for when export options are shown
 
 ## Purpose
-Define the output produced by the app when exporting one selected conversation.
+Define the local artifact produced when exporting the current open chat.
 
-## Default artifact
-The default export artifact is one JSON file representing one selected conversation.
+## Default artifacts
+- `chat.json`
+- optional `chat.md`
+- optional `.zip` only when extra files make loose output awkward
 
 ## JSON requirements
 The JSON should be:
-- readable by a developer
+- human-inspectable
 - stable enough for reuse in later tooling
-- limited to data needed for a single-conversation export
+- limited to one current-chat export
 
 ## Recommended top-level shape
 ```json
 {
   "version": 1,
-  "source": "chatgpt-export",
+  "source": "chatgpt-page",
   "conversation": {
     "id": "...",
     "title": "...",
+    "url": "...",
     "messages": []
   },
   "attachments": []
@@ -40,31 +45,32 @@ The JSON should be:
 ```
 
 ## Message shape
-Each message should include only fields needed for reuse:
-- stable local message id if available
+Each message should include only reusable fields:
+- local message id if derivable
 - author role
-- textual content
+- text content
 - attachment references linked to that message if present
-- optional timestamps only when the user includes metadata
+- optional timestamps only when the source exposes them reliably
 
-Do not preserve raw source blobs unless a task explicitly requires them.
+Do not preserve raw DOM dumps or page HTML unless explicitly required.
 
-## Attachment handling
+## Attachment policy
 - Attachments are optional.
-- If excluded, the JSON should still remain valid.
-- If included, attachment references in JSON should match exported files.
-- Keep attachment filenames deterministic where possible.
+- If binary content is not directly accessible, export metadata instead of pretending the file was captured.
+- JSON references must match exported files when files are included.
+- Keep filenames deterministic where possible.
 
 ## Packaging rules
-Use a plain `.json` file when the export contains only conversation data or a small number of extra files.
+Use plain files when the export contains only text output or a small number of extra files.
 
-Use a `.zip` package when:
-- the export includes multiple attachment files, and
-- packaging improves usability over loose files.
+Use `.zip` only when:
+- multiple files are being saved, and
+- packaging improves usability.
 
-Zip packaging is a convenience format, not a product guarantee about ChatGPT re-upload compatibility.
+Packaging is a convenience format, not a guarantee about later ChatGPT re-upload behavior.
 
 ## Naming
-Recommended output naming:
-- `conversation.json`
-- `conversation-with-assets.zip`
+Recommended names:
+- `chat.json`
+- `chat.md`
+- `chat-with-assets.zip`
