@@ -5,7 +5,7 @@ export default defineConfig({
   manifest: {
     name: 'chatExplorer',
     version: '0.0.0',
-    permissions: ['activeTab'],
+    permissions: ['activeTab', 'scripting'],
     action: {
       default_title: 'chatExplorer',
       default_popup: 'entrypoints/popup/index.html',
