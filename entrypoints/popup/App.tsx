@@ -54,6 +54,8 @@ interface ConfidenceResult {
   reasons: string[];
 }
 
+type ExportStatus = 'idle' | 'success' | 'error';
+
 // ---------------------------------------------------------------------------
 // Pure helpers
 // ---------------------------------------------------------------------------
@@ -111,6 +113,72 @@ const PREVIEW_TEXT_LIMIT = 120;
 function truncate(text: string, limit: number): string {
   if (text.length <= limit) return text;
   return text.slice(0, limit) + '\u2026';
+}
+
+function sanitizeFilename(name: string): string {
+  return name
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 100) || 'chatgpt-conversation';
+}
+
+const EXPORT_LIMITATIONS: readonly string[] = [
+  'Plain-text subset only; formatting and structure may be simplified',
+  'Rich content (images, canvas, embeds) is omitted',
+  'Not a full-fidelity archive of the ChatGPT page',
+  'Message timestamps are not available from the rendered page',
+];
+
+function buildExportPayload(
+  preview: ExtractionPreview,
+  confidence: ConfidenceResult,
+  origin?: string,
+  pageTitle?: string,
+): Record<string, unknown> {
+  const d = preview.diagnostics;
+  return {
+    schemaVersion: 2,
+    exportKind: 'current-chat-snapshot',
+    contentMode: 'plain-text-subset',
+    exportedAt: new Date().toISOString(),
+    exportedFrom: {
+      tool: 'chatExplorer-extension',
+    },
+    source: {
+      origin: origin ?? null,
+      pageTitle: pageTitle ?? null,
+      conversationTitle: preview.title,
+      titleSource: d.titleSource,
+    },
+    summary: {
+      totalTurnsFound: d.turnCount,
+      messagesExported: d.messageCount,
+      skippedTurns: d.skippedTurnCount,
+      unsupportedTurns: d.unsupportedTurnCount,
+      emptyTextTurns: d.emptyTextCount,
+      fallbackTextMessages: d.fallbackTextCount,
+      hasPotentialLoss:
+        d.skippedTurnCount > 0 || d.unsupportedTurnCount > 0 || d.emptyTextCount > 0,
+    },
+    messages: preview.messages.map((m, i) => ({ index: i, ...m })),
+    diagnostics: d,
+    confidence,
+    limitations: EXPORT_LIMITATIONS,
+  };
+}
+
+function downloadJson(payload: Record<string, unknown>, filename: string): void {
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------------
@@ -240,6 +308,8 @@ export function App() {
   const [status, setStatus] = useState<PageStatus>('loading');
   const [preview, setPreview] = useState<ExtractionPreview | null>(null);
   const [confidence, setConfidence] = useState<ConfidenceResult | null>(null);
+  const [exportStatus, setExportStatus] = useState<ExportStatus>('idle');
+  const [tabMeta, setTabMeta] = useState<{ url?: string; title?: string }>({});
 
   useEffect(() => {
     chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
@@ -250,6 +320,8 @@ export function App() {
         setStatus('unsupported');
         return;
       }
+
+      setTabMeta({ url, title: tab.title });
 
       if (!tab.id) {
         setStatus('probe-unavailable');
@@ -273,6 +345,20 @@ export function App() {
       setStatus('conversation');
     });
   }, []);
+
+  const canExport = status === 'conversation' && preview !== null && confidence !== null;
+
+  function handleExport() {
+    if (!preview || !confidence) return;
+    try {
+      const payload = buildExportPayload(preview, confidence, tabMeta.url, tabMeta.title);
+      const base = preview.title ? sanitizeFilename(preview.title) : 'chatgpt-conversation';
+      downloadJson(payload, `${base}.json`);
+      setExportStatus('success');
+    } catch {
+      setExportStatus('error');
+    }
+  }
 
   return (
     <main style={{ width: 360, padding: 12, fontFamily: 'system-ui' }}>
@@ -329,6 +415,36 @@ export function App() {
                 </li>
               )}
             </ul>
+          )}
+
+          <button
+            type="button"
+            disabled={!canExport}
+            onClick={handleExport}
+            style={{
+              marginTop: 12,
+              width: '100%',
+              padding: '8px 0',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: canExport ? 'pointer' : 'default',
+              border: 'none',
+              borderRadius: 6,
+              background: canExport ? '#2563eb' : '#e5e7eb',
+              color: canExport ? '#fff' : '#9ca3af',
+            }}
+          >
+            Export current chat
+          </button>
+          {exportStatus === 'success' && (
+            <p style={{ margin: '6px 0 0', fontSize: 12, color: '#2e7d32' }}>
+              JSON file saved
+            </p>
+          )}
+          {exportStatus === 'error' && (
+            <p style={{ margin: '6px 0 0', fontSize: 12, color: '#c62828' }}>
+              Export failed — try again
+            </p>
           )}
         </section>
       )}
